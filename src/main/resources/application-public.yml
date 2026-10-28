@@ -1,0 +1,16 @@
+# Settings for the public online demo (SPRING_PROFILES_ACTIVE=public), e.g. on Render's free plan:
+# 512 MB RAM, a small shared database, and visitors we don't control.
+tatkal:
+  stampede:
+    max-threads: 1000             # enough for the 500-buyer demo, not enough to knock the box over
+
+spring:
+  datasource:
+    hikari:
+      maximum-pool-size: 10       # free Postgres allows ~100 connections; stay well under
+
+logging:
+  level:
+    root: WARN
+    com.tatkal: INFO
+    org.springframework.boot.web: INFO

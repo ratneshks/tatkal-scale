@@ -42,6 +42,11 @@ public final class EmbeddedPostgresLauncher {
             System.exit(1);
         }
 
+        // Cloud hosts (e.g. Render) hand us the database as separate DB_HOST/DB_PORT/... variables.
+        if (useCloudDatabaseVariables()) {
+            return;
+        }
+
         boolean external = System.getProperty("spring.datasource.url") != null
                 || System.getenv("SPRING_DATASOURCE_URL") != null
                 || Arrays.stream(args).anyMatch(a -> a.startsWith("--spring.datasource.url"));
@@ -70,13 +75,32 @@ public final class EmbeddedPostgresLauncher {
         log.info("Embedded PostgreSQL started on port {}", port);
     }
 
-    /** The port Tomcat will use: --server.port=..., -Dserver.port, SERVER_PORT, else 8080. */
+    /**
+     * If DB_HOST is set, build the JDBC URL from DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD.
+     * Render (and many hosts) expose a managed database this way rather than as a JDBC URL.
+     */
+    private static boolean useCloudDatabaseVariables() {
+        String host = System.getenv("DB_HOST");
+        if (host == null || host.isBlank()) {
+            return false;
+        }
+        String port = System.getenv().getOrDefault("DB_PORT", "5432");
+        String name = System.getenv().getOrDefault("DB_NAME", "postgres");
+        System.setProperty("spring.datasource.url", "jdbc:postgresql://" + host + ":" + port + "/" + name);
+        System.setProperty("spring.datasource.username", System.getenv().getOrDefault("DB_USER", "postgres"));
+        System.setProperty("spring.datasource.password", System.getenv().getOrDefault("DB_PASSWORD", ""));
+        log.info("Using cloud database at {}:{}/{}", host, port, name);
+        return true;
+    }
+
+    /** The port Tomcat will use: --server.port=..., -Dserver.port, SERVER_PORT, PORT (cloud hosts), else 8080. */
     private static int webPort(String[] args) {
+        String fromEnv = System.getenv().getOrDefault("SERVER_PORT", System.getenv().getOrDefault("PORT", "8080"));
         String value = Arrays.stream(args)
                 .filter(a -> a.startsWith("--server.port="))
                 .map(a -> a.substring("--server.port=".length()))
                 .findFirst()
-                .orElse(System.getProperty("server.port", System.getenv().getOrDefault("SERVER_PORT", "8080")));
+                .orElse(System.getProperty("server.port", fromEnv));
         try {
             return Integer.parseInt(value.trim());
         } catch (NumberFormatException e) {

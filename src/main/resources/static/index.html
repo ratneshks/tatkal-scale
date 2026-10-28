@@ -234,6 +234,7 @@
       </label>
       <span class="spacer"></span>
       <button class="btn small" id="sweepNow" type="button" title="Release expired holds now instead of waiting up to 30s">Run expiry sweeper now</button>
+      <button class="btn small" id="resetTrain" type="button" title="Make all 40 seats available again">Reset all seats</button>
     </div>
     <div class="two-col">
       <div>
@@ -444,7 +445,7 @@ async function loadTrain() {
       const cls = `seat ${s.holdExpired ? 'AVAILABLE' : s.status} ${free ? 'clickable' : ''} ${mine.has(s.id) && !free ? 'mine' : ''}`;
       const who = s.heldBy ? ` by ${s.heldBy}` : '';
       return `<div class="${cls}" data-seat="${s.id}" role="${free ? 'button' : 'img'}" tabindex="${free ? 0 : -1}"
-        title="${esc(s.seatNo)}: ${s.holdExpired ? 'hold expired, free to take' : s.status + esc(who)}">${esc(s.seatNo.replace('B1-', ''))}</div>`;
+        title="${esc(s.seatNo)}: ${s.holdExpired ? 'hold expired, free to take' : s.status + esc(who)}">${esc(s.seatNo.split('-').pop())}</div>`;
     }).join('');
   } catch { /* ignore */ }
 }
@@ -512,6 +513,16 @@ $('sweepNow').addEventListener('click', async () => {
   try {
     const r = await api('/admin/sweeper/run', { method: 'POST' });
     setMsg(`Sweeper released ${r.released} expired hold(s).`, 'ok');
+  } catch (e) { setMsg(e.message, 'err'); }
+  loadTrain();
+});
+
+$('resetTrain').addEventListener('click', async () => {
+  if (!confirm('Make all 40 seats available again? This clears everyone\'s holds and bookings on this train.')) return;
+  try {
+    await api(`/admin/shows/${PLAY_SHOW}/reset?seats=40`, { method: 'POST' });
+    myHolds.clear(); renderHolds();
+    setMsg('All 40 seats are available again.', 'ok');
   } catch (e) { setMsg(e.message, 'err'); }
   loadTrain();
 });

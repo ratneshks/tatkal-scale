@@ -55,6 +55,26 @@ PASS  pessimistic  sold 5/5  phantom tickets: 0   responses: SUCCESS=5, 409 SOLD
 PASS  skip-locked  sold 5/5  phantom tickets: 0   responses: SUCCESS=5, 409 SOLD_OUT=495
 ```
 
+### Deploy online (free, on Render)
+
+The repo includes a `Dockerfile` and a `render.yaml` Blueprint that creates a free web service
+and a free PostgreSQL database in Singapore.
+
+1. Sign in at [render.com](https://render.com) with GitHub.
+2. **New** -> **Blueprint** -> pick this repository -> **Apply**.
+3. Wait for the first build (about 5-10 minutes). Your link is `https://tatkal-scale.onrender.com`
+   (Render adds a suffix if the name is taken).
+
+How the app adapts to the cloud:
+- **Port:** it listens on `$PORT`.
+- **Database:** it builds its connection from `DB_HOST` / `DB_PORT` / `DB_NAME` / `DB_USER` / `DB_PASSWORD`,
+  so the embedded database is skipped.
+- **`public` profile:** caps a stampede at 1000 threads.
+
+Free-plan limits:
+- The service sleeps after 15 minutes without visitors, so the first visit after that takes about a minute.
+- Render's free PostgreSQL expires after 30 days unless upgraded.
+
 ### Running two copies at once
 
 Only one program can use port 8080. If it's taken, the app stops immediately with a message saying so.

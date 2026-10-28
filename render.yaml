@@ -1,0 +1,40 @@
+# Render Blueprint: one free web service (built from the Dockerfile) + one free PostgreSQL.
+# Deploy: Render dashboard -> New -> Blueprint -> pick this repo -> Apply.
+services:
+  - type: web
+    name: tatkal-scale
+    runtime: docker
+    plan: free
+    region: singapore
+    healthCheckPath: /actuator/health
+    autoDeploy: true
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: public
+      - key: DB_HOST
+        fromDatabase:
+          name: tatkal-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: tatkal-db
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: tatkal-db
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: tatkal-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: tatkal-db
+          property: password
+
+databases:
+  - name: tatkal-db
+    plan: free
+    region: singapore
+    databaseName: tatkal
+    user: tatkal
