@@ -1,0 +1,542 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tatkal-Scale Dashboard</title>
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f9f9f7;
+    --surface: #fcfcfb;
+    --text: #0b0b0b;
+    --text-2: #52514e;
+    --muted: #898781;
+    --grid: #e1e0d9;
+    --axis: #c3c2b7;
+    --border: rgba(11,11,11,0.10);
+    --s1: #2a78d6;  /* p50  / BOOKED */
+    --s2: #eb6834;  /* p95  / HELD   */
+    --s3: #1baf7a;  /* p99           */
+    --good: #0ca30c;
+    --good-text: #006300;
+    --critical: #d03b3b;
+    --wash: rgba(11,11,11,0.04);
+    --accent: #2a78d6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --page: #0d0d0d; --surface: #1a1a19; --text: #f0efec; --text-2: #c3c2b7; --muted: #898781;
+      --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+      --s1: #3987e5; --s2: #d95926; --s3: #199e70; --good-text: #0ca30c; --wash: rgba(255,255,255,0.05);
+      --accent: #3987e5;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --text: #f0efec; --text-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --good-text: #0ca30c; --wash: rgba(255,255,255,0.05);
+    --accent: #3987e5;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--page); color: var(--text);
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 24px 16px 64px; }
+  header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+  h1 { font-size: 22px; margin: 0; letter-spacing: -0.01em; }
+  h2 { font-size: 16px; margin: 0 0 4px; }
+  .sub { color: var(--text-2); margin: 0 0 16px; }
+  .health { margin-left: auto; color: var(--text-2); font-size: 13px; display: flex; align-items: center; gap: 6px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .dot.up { background: var(--good); }
+  .dot.down { background: var(--critical); }
+
+  section.card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px; margin-bottom: 16px;
+  }
+
+  /* controls */
+  .controls { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: flex-end; margin-bottom: 16px; }
+  .field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-2); }
+  .field input[type=number], .field select, .field input[type=text] {
+    font: inherit; font-size: 14px; color: var(--text); background: var(--page);
+    border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; width: 96px;
+  }
+  .field select { width: auto; }
+  .field input[type=text] { width: 140px; }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .seg button { border: 0; background: transparent; color: var(--text-2); padding: 6px 10px; font: inherit; font-size: 13px; cursor: pointer; }
+  .seg button[aria-pressed=true] { background: var(--text); color: var(--surface); }
+  .check { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-2); padding-bottom: 7px; }
+  .btn {
+    font: inherit; font-weight: 600; border-radius: 8px; padding: 8px 14px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--page); color: var(--text);
+  }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn:disabled { opacity: 0.5; cursor: wait; }
+  .btn.small { padding: 4px 10px; font-size: 13px; }
+  .spacer { flex: 1; }
+  .status-line { color: var(--text-2); font-size: 13px; min-height: 20px; margin: -4px 0 12px; }
+
+  /* verdict tiles */
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .tile { border: 1px solid var(--border); border-radius: 10px; padding: 14px; background: var(--surface); }
+  .tile .name { font-weight: 600; font-size: 13px; letter-spacing: 0.02em; }
+  .badge { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; margin-left: 6px; }
+  .badge.pass { color: var(--good-text); }
+  .badge.fail { color: var(--critical); }
+  .badge .ic { width: 16px; height: 16px; border-radius: 50%; display: inline-grid; place-items: center; color: #fff; font-size: 11px; }
+  .badge.pass .ic { background: var(--good); }
+  .badge.fail .ic { background: var(--critical); }
+  .hero { font-size: 28px; font-weight: 600; margin: 8px 0 2px; }
+  .hero small { font-size: 14px; font-weight: 400; color: var(--text-2); }
+  .kv { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; font-size: 13px; color: var(--text-2); margin-top: 8px; }
+  .kv b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
+  .kv b.bad { color: var(--critical); }
+  .empty { color: var(--muted); padding: 24px 0; text-align: center; }
+
+  /* chart */
+  .chart-head { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 8px; }
+  .legend { display: flex; gap: 14px; font-size: 12px; color: var(--text-2); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+  .chart { position: relative; padding: 4px 0 24px 112px; }
+  .chart .gridline { position: absolute; top: 0; bottom: 24px; width: 1px; background: var(--grid); }
+  .chart .tick { position: absolute; bottom: 4px; transform: translateX(-50%); font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .chart .baseline { position: absolute; top: 0; bottom: 24px; width: 1px; background: var(--axis); }
+  .group { position: relative; padding: 6px 0; }
+  .group-label { position: absolute; left: -112px; width: 104px; top: 50%; transform: translateY(-50%); text-align: right; font-size: 12px; color: var(--text-2); font-weight: 600; }
+  .bar-row { position: relative; height: 12px; margin-bottom: 2px; cursor: default; }
+  .bar-row::before { content: ""; position: absolute; inset: -1px 0; } /* bigger hit target */
+  .bar { position: absolute; left: 0; top: 0; height: 10px; border-radius: 0 4px 4px 0; transition: width .4s ease; }
+  .bar-row:hover .bar { filter: brightness(1.08); }
+  .tooltip {
+    position: fixed; pointer-events: none; z-index: 10; background: var(--text); color: var(--surface);
+    font-size: 12px; padding: 6px 8px; border-radius: 6px; white-space: nowrap; display: none;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; }
+  th:first-child, td:first-child { text-align: left; }
+  #history th:nth-child(2), #history td:nth-child(2), #history th:nth-child(3), #history td:nth-child(3) { text-align: left; }
+  td.bad { color: var(--critical); font-weight: 600; }
+  td.good { color: var(--good-text); font-weight: 600; }
+  .table-scroll { overflow-x: auto; }
+
+  /* seat maps */
+  .seats { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 6px; }
+  .seat {
+    height: 36px; border-radius: 6px; display: grid; place-items: center; font-size: 11px; font-weight: 600;
+    border: 1px solid var(--axis); color: var(--text-2); background: var(--page); user-select: none;
+  }
+  .seat.HELD { background: var(--s2); border-color: transparent; color: #fff; }
+  .seat.BOOKED { background: var(--s1); border-color: transparent; color: #fff; }
+  .seat.mine { outline: 2px solid var(--text); outline-offset: 2px; }
+  .seat.clickable { cursor: pointer; }
+  .seat.clickable:hover { background: var(--wash); border-color: var(--text-2); }
+  .seat-legend { display: flex; gap: 14px; font-size: 12px; color: var(--text-2); margin: 10px 0 0; flex-wrap: wrap; }
+  .seat-legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .seat-legend i { width: 14px; height: 14px; border-radius: 4px; display: inline-block; border: 1px solid var(--axis); background: var(--page); }
+  .seat-legend i.h { background: var(--s2); border-color: transparent; }
+  .seat-legend i.b { background: var(--s1); border-color: transparent; }
+
+  .two-col { display: grid; grid-template-columns: 1fr 300px; gap: 20px; }
+  @media (max-width: 820px) { .two-col { grid-template-columns: 1fr; } .chart { padding-left: 92px; } .group-label { left: -92px; width: 86px; } }
+  .holds { display: flex; flex-direction: column; gap: 8px; }
+  .hold { border: 1px solid var(--border); border-radius: 8px; padding: 10px; font-size: 13px; }
+  .hold .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .hold .timer { font-variant-numeric: tabular-nums; color: var(--text-2); }
+  .hold .actions { display: flex; gap: 6px; margin-top: 8px; }
+  .msg { font-size: 13px; min-height: 20px; color: var(--text-2); margin-top: 8px; }
+  .msg.err { color: var(--critical); }
+  .msg.ok { color: var(--good-text); }
+  code { font-family: ui-monospace, Consolas, monospace; font-size: 12px; background: var(--wash); padding: 1px 4px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Tatkal-Scale</h1>
+    <span class="sub" style="margin:0">Zero-oversell flash booking engine</span>
+    <span class="health"><span class="dot" id="healthDot"></span><span id="healthText">checking…</span></span>
+  </header>
+
+  <!-- ===================== STAMPEDE ===================== -->
+  <section class="card">
+    <h2>Stampede Simulator</h2>
+    <p class="sub">Fire N threads at the same instant at the last few seats, then count, in the database, whether any seat was sold twice.
+      The database's safety index stays off during the run unless you tick it, so each strategy earns its result on its own.</p>
+
+    <div class="controls">
+      <div class="field">Mode
+        <div class="seg" id="modeSeg" role="group" aria-label="Mode">
+          <button type="button" data-mode="ANY_SEAT" aria-pressed="true" title="Everyone wants any free seat">Any seat</button>
+          <button type="button" data-mode="SAME_SEAT" aria-pressed="false" title="Everyone wants the same seat">Same seat</button>
+        </div>
+      </div>
+      <label class="field">Threads <input type="number" id="threads" value="500" min="1" max="5000"></label>
+      <label class="field">Seats <input type="number" id="seats" value="5" min="1" max="1000"></label>
+      <label class="field">Think time (ms) <input type="number" id="think" value="2" min="0" max="1000"></label>
+      <label class="check"><input type="checkbox" id="virtual"> Virtual threads</label>
+      <label class="check"><input type="checkbox" id="guard"> DB safety index on</label>
+      <span class="spacer"></span>
+      <label class="field">Strategy
+        <select id="oneStrategy">
+          <option>NAIVE</option><option selected>OPTIMISTIC</option><option>PESSIMISTIC</option><option>SKIP_LOCKED</option>
+        </select>
+      </label>
+      <button class="btn" id="runOne" type="button">Run one</button>
+      <button class="btn primary" id="runAll" type="button">Run all 4 strategies</button>
+    </div>
+    <div class="status-line" id="stampedeStatus"></div>
+
+    <div class="tiles" id="tiles"><div class="empty" style="grid-column:1/-1">Press <b>Run all 4 strategies</b> to start a stampede.</div></div>
+
+    <div class="chart-head">
+      <h2 style="margin:0">Latency per buyer (ms)</h2>
+      <div class="legend" id="legend">
+        <span><i style="background:var(--s1)"></i>p50</span>
+        <span><i style="background:var(--s2)"></i>p95</span>
+        <span><i style="background:var(--s3)"></i>p99</span>
+      </div>
+      <span class="spacer"></span>
+      <button class="btn small" id="toggleTable" type="button" aria-pressed="false">Show as table</button>
+    </div>
+    <div id="chart" class="chart"><div class="empty">No runs yet.</div></div>
+    <div id="chartTable" class="table-scroll" hidden></div>
+
+    <h2 style="margin-top:20px">Arena after the last run <span id="arenaNote" style="font-weight:400;color:var(--text-2);font-size:13px"></span></h2>
+    <div class="seats" id="arena"></div>
+    <div class="seat-legend">
+      <span><i></i>Available</span><span><i class="h"></i>Held (awaiting payment)</span><span><i class="b"></i>Booked</span>
+    </div>
+  </section>
+
+  <!-- ===================== PLAYGROUND ===================== -->
+  <section class="card">
+    <h2>Try it yourself: book a seat</h2>
+    <p class="sub">Click a free seat to hold it for 5 minutes, then confirm (simulated payment) or cancel.
+      Open this page in two tabs and try to grab the same seat. Only one tab wins.</p>
+    <div class="controls">
+      <label class="field">Your name <input type="text" id="userId" value="ratnesh" maxlength="40"></label>
+      <label class="field">Locking strategy
+        <select id="playStrategy">
+          <option value="optimistic">Optimistic (@Version)</option>
+          <option value="pessimistic">Pessimistic (FOR UPDATE)</option>
+          <option value="skip-locked">Skip locked</option>
+        </select>
+      </label>
+      <span class="spacer"></span>
+      <button class="btn small" id="sweepNow" type="button" title="Release expired holds now instead of waiting up to 30s">Run expiry sweeper now</button>
+    </div>
+    <div class="two-col">
+      <div>
+        <div class="seats" id="trainSeats"></div>
+        <div class="seat-legend">
+          <span><i></i>Available (click to hold)</span><span><i class="h"></i>Held</span><span><i class="b"></i>Booked</span>
+          <span><i style="outline:2px solid var(--text);outline-offset:1px"></i>Yours</span>
+        </div>
+      </div>
+      <div>
+        <h2>Your holds</h2>
+        <div class="holds" id="myHolds"><div class="empty" style="padding:12px 0">None yet.</div></div>
+        <div class="msg" id="playMsg"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== HISTORY ===================== -->
+  <section class="card">
+    <div class="chart-head">
+      <h2 style="margin:0">Run history</h2><span class="spacer"></span>
+      <button class="btn small" id="refreshHistory" type="button">Refresh</button>
+    </div>
+    <div class="table-scroll" id="history"></div>
+  </section>
+</div>
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+const API = '/api/v1';
+const STRATS = ['NAIVE', 'OPTIMISTIC', 'PESSIMISTIC', 'SKIP_LOCKED'];
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt = n => n == null ? '-' : Number(n).toLocaleString(undefined, { maximumFractionDigits: 1 });
+
+async function api(path, opts = {}) {
+  const res = await fetch(API + path, { headers: { 'Content-Type': 'application/json' }, ...opts });
+  const text = await res.text();
+  const body = text ? JSON.parse(text) : null;
+  if (!res.ok) {
+    const err = new Error(body?.detail || res.statusText);
+    err.code = body?.code; err.status = res.status;
+    throw err;
+  }
+  return body;
+}
+
+/* ---------- health ---------- */
+async function health() {
+  try {
+    const r = await fetch('/actuator/health');
+    const ok = r.ok && (await r.json()).status === 'UP';
+    $('healthDot').className = 'dot ' + (ok ? 'up' : 'down');
+    $('healthText').textContent = ok ? 'Server up' : 'Server unhealthy';
+  } catch {
+    $('healthDot').className = 'dot down';
+    $('healthText').textContent = 'Server unreachable';
+  }
+}
+
+/* ---------- stampede ---------- */
+let mode = 'ANY_SEAT';
+let lastReports = [];
+$('modeSeg').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  mode = b.dataset.mode;
+  $('modeSeg').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b));
+});
+
+function stampedeBody(extra = {}) {
+  return {
+    mode,
+    threads: +$('threads').value || 500,
+    seats: +$('seats').value || 5,
+    thinkTimeMs: +$('think').value || 0,
+    virtualThreads: $('virtual').checked,
+    dbGuard: $('guard').checked,
+    ...extra
+  };
+}
+
+async function runStampede(all) {
+  const btns = [$('runAll'), $('runOne')];
+  btns.forEach(b => b.disabled = true);
+  const body = stampedeBody(all ? {} : { strategy: $('oneStrategy').value });
+  $('stampedeStatus').textContent = `Firing ${body.threads} threads at ${body.seats} seat(s)${all ? ' for each of 4 strategies' : ''}…`;
+  const t0 = performance.now();
+  try {
+    const result = await api(all ? '/stampede/compare' : '/stampede', { method: 'POST', body: JSON.stringify(body) });
+    lastReports = all ? result : mergeReport(result);
+    renderTiles(lastReports);
+    renderChart(lastReports);
+    const last = all ? result[result.length - 1] : result;
+    $('arenaNote').textContent = `(${last.strategy}, ${last.mode === 'ANY_SEAT' ? 'any seat' : 'same seat'})`;
+    $('stampedeStatus').textContent = `Done in ${fmt((performance.now() - t0) / 1000)} s.`;
+    loadArena();
+    loadHistory();
+  } catch (e) {
+    $('stampedeStatus').textContent = 'Failed: ' + e.message;
+  } finally {
+    btns.forEach(b => b.disabled = false);
+  }
+}
+
+function mergeReport(r) {
+  // keep the other strategies' last results visible when running just one
+  const map = new Map(lastReports.map(x => [x.strategy, x]));
+  map.set(r.strategy, r);
+  return STRATS.filter(s => map.has(s)).map(s => map.get(s));
+}
+
+function renderTiles(reports) {
+  $('tiles').innerHTML = reports.map(r => {
+    const pass = r.invariant.holds;
+    const o = r.outcomes;
+    const sold = o.SUCCESS;
+    return `<div class="tile">
+      <div><span class="name">${esc(r.strategy)}</span>
+        <span class="badge ${pass ? 'pass' : 'fail'}"><span class="ic">${pass ? '✓' : '✕'}</span>${pass ? 'Zero oversell' : 'Oversold'}</span></div>
+      <div class="hero">${sold} <small>sold of ${r.mode === 'SAME_SEAT' ? 1 : r.seats} seat${r.mode === 'SAME_SEAT' || r.seats === 1 ? '' : 's'}</small></div>
+      <div class="kv">
+        <span>Phantom tickets</span><b class="${r.invariant.extraBookings ? 'bad' : ''}">${r.invariant.extraBookings}</b>
+        <span>Turned away</span><b>${o.SOLD_OUT}</b>
+        <span>Retries</span><b>${r.totalRetries}</b>
+        <span>Lock timeouts / errors</span><b>${o.LOCK_TIMEOUT} / ${o.ERROR + o.RETRIES_EXHAUSTED}</b>
+        ${o.DB_GUARD_REJECTED ? `<span>Stopped by DB index</span><b>${o.DB_GUARD_REJECTED}</b>` : ''}
+        <span>p95 latency</span><b>${fmt(r.latency.p95Ms)} ms</b>
+        <span>Total time</span><b>${fmt(r.wallMs)} ms</b>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function niceMax(v) {
+  if (v <= 0) return 1;
+  const p = Math.pow(10, Math.floor(Math.log10(v)));
+  for (const m of [1, 1.2, 1.6, 2, 2.4, 3, 4, 5, 6, 8, 10]) if (m * p >= v) return m * p;
+  return 10 * p;
+}
+
+function renderChart(reports) {
+  const series = [['p50Ms', 'p50', 'var(--s1)'], ['p95Ms', 'p95', 'var(--s2)'], ['p99Ms', 'p99', 'var(--s3)']];
+  const max = niceMax(Math.max(...reports.map(r => r.latency.p99Ms)));
+  const ticks = [0, 0.25, 0.5, 0.75, 1].map(f => f * max);
+  const chart = $('chart');
+  let html = '';
+  ticks.forEach((t, i) => {
+    const left = `calc(112px + (100% - 112px) * ${t / max})`;
+    html += `<div class="${i === 0 ? 'baseline' : 'gridline'}" style="left:${left}"></div>`;
+    html += `<div class="tick" style="left:${left}">${fmt(t)}</div>`;
+  });
+  html += reports.map(r => `<div class="group"><div class="group-label">${esc(r.strategy)}</div>${
+    series.map(([k, label, color]) => {
+      const v = r.latency[k];
+      return `<div class="bar-row" data-tip="${esc(r.strategy)} · ${label} · ${fmt(v)} ms">
+        <div class="bar" style="width:${(v / max) * 100}%;background:${color}"></div></div>`;
+    }).join('')}</div>`).join('');
+  chart.innerHTML = html;
+  // responsive gridline positions use the chart's own padding
+  const pad = getComputedStyle(chart).paddingLeft;
+  chart.querySelectorAll('.gridline,.baseline,.tick').forEach(el => el.style.left = el.style.left.replace(/112px/g, pad));
+
+  $('chartTable').innerHTML = `<table><thead><tr><th>Strategy</th><th>p50 ms</th><th>p95 ms</th><th>p99 ms</th><th>max ms</th><th>Retries</th><th>Oversold seats</th></tr></thead><tbody>${
+    reports.map(r => `<tr><td>${esc(r.strategy)}</td><td>${fmt(r.latency.p50Ms)}</td><td>${fmt(r.latency.p95Ms)}</td><td>${fmt(r.latency.p99Ms)}</td><td>${fmt(r.latency.maxMs)}</td><td>${r.totalRetries}</td><td class="${r.invariant.oversoldSeats ? 'bad' : 'good'}">${r.invariant.oversoldSeats}</td></tr>`).join('')
+  }</tbody></table>`;
+}
+
+$('toggleTable').addEventListener('click', () => {
+  const showTable = $('chartTable').hidden;
+  $('chartTable').hidden = !showTable;
+  $('chart').hidden = showTable;
+  $('legend').style.visibility = showTable ? 'hidden' : 'visible';
+  $('toggleTable').textContent = showTable ? 'Show as chart' : 'Show as table';
+  $('toggleTable').setAttribute('aria-pressed', showTable);
+});
+
+/* tooltip for bars */
+const tip = $('tooltip');
+document.addEventListener('mousemove', e => {
+  const row = e.target.closest?.('[data-tip]');
+  if (!row) { tip.style.display = 'none'; return; }
+  tip.textContent = row.dataset.tip;
+  tip.style.display = 'block';
+  tip.style.left = Math.min(e.clientX + 12, innerWidth - tip.offsetWidth - 8) + 'px';
+  tip.style.top = (e.clientY + 14) + 'px';
+});
+
+async function loadArena() {
+  try {
+    const map = await api('/shows/2/seats');
+    $('arena').innerHTML = map.seats.map(s =>
+      `<div class="seat ${s.status}" title="${esc(s.seatNo)}: ${s.status}${s.heldBy ? ' by ' + esc(s.heldBy) : ''} (version ${s.version})">${esc(s.seatNo)}</div>`).join('');
+  } catch { /* server down; health shows it */ }
+}
+
+/* ---------- playground (show 1) ---------- */
+const myHolds = new Map();   // token -> hold
+const PLAY_SHOW = 1;
+
+function setMsg(text, kind = '') { $('playMsg').textContent = text; $('playMsg').className = 'msg ' + kind; }
+
+async function loadTrain() {
+  try {
+    const map = await api(`/shows/${PLAY_SHOW}/seats`);
+    const mine = new Set([...myHolds.values()].map(h => h.seatId));
+    $('trainSeats').innerHTML = map.seats.map(s => {
+      const free = s.status === 'AVAILABLE' || s.holdExpired;
+      const cls = `seat ${s.holdExpired ? 'AVAILABLE' : s.status} ${free ? 'clickable' : ''} ${mine.has(s.id) && !free ? 'mine' : ''}`;
+      const who = s.heldBy ? ` by ${s.heldBy}` : '';
+      return `<div class="${cls}" data-seat="${s.id}" role="${free ? 'button' : 'img'}" tabindex="${free ? 0 : -1}"
+        title="${esc(s.seatNo)}: ${s.holdExpired ? 'hold expired, free to take' : s.status + esc(who)}">${esc(s.seatNo.replace('B1-', ''))}</div>`;
+    }).join('');
+  } catch { /* ignore */ }
+}
+
+$('trainSeats').addEventListener('click', e => {
+  const el = e.target.closest('.seat.clickable'); if (el) holdSeat(+el.dataset.seat);
+});
+$('trainSeats').addEventListener('keydown', e => {
+  const el = e.target.closest('.seat.clickable');
+  if (el && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); holdSeat(+el.dataset.seat); }
+});
+
+async function holdSeat(seatId) {
+  const userId = $('userId').value.trim() || 'guest';
+  const strategy = $('playStrategy').value;
+  try {
+    const h = await api(`/${strategy}/shows/${PLAY_SHOW}/holds`, { method: 'POST', body: JSON.stringify({ userId, seatId }) });
+    myHolds.set(h.holdToken, h);
+    setMsg(`Held seat ${h.seatNo} with ${h.strategy} (attempt ${h.attempts}). Pay within 5 minutes.`, 'ok');
+  } catch (e) {
+    setMsg(`${e.code || 'Error'}: ${e.message}`, 'err');
+  }
+  renderHolds(); loadTrain();
+}
+
+async function act(token, action) {
+  try {
+    const b = action === 'confirm'
+      ? await api(`/holds/${token}/confirm`, { method: 'POST' })
+      : await api(`/holds/${token}`, { method: 'DELETE' });
+    const h = myHolds.get(token);
+    h.status = b.status;
+    setMsg(`Seat ${h.seatNo}: ${b.status === 'CONFIRMED' ? 'booked! Payment confirmed.' : 'hold cancelled, seat released.'}`, 'ok');
+  } catch (e) {
+    const h = myHolds.get(token);
+    if (e.code === 'HOLD_EXPIRED') h.status = 'EXPIRED';
+    setMsg(`${e.code || 'Error'}: ${e.message}`, 'err');
+  }
+  renderHolds(); loadTrain();
+}
+
+function renderHolds() {
+  const list = [...myHolds.values()].reverse();
+  if (!list.length) { $('myHolds').innerHTML = '<div class="empty" style="padding:12px 0">None yet.</div>'; return; }
+  const now = Date.now();
+  $('myHolds').innerHTML = list.map(h => {
+    const left = Math.max(0, Math.round((new Date(h.expiresAt) - now) / 1000));
+    const status = h.status || (left > 0 ? 'HELD' : 'EXPIRED');
+    const active = status === 'HELD';
+    const timer = active ? `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')} left` : status.toLowerCase();
+    return `<div class="hold">
+      <div class="row"><b>Seat ${esc(h.seatNo)}</b><span class="timer">${timer}</span></div>
+      <div style="color:var(--text-2);font-size:12px">${esc(h.strategy)} · token <code>${esc(h.holdToken.slice(0, 8))}</code></div>
+      ${active ? `<div class="actions">
+        <button class="btn small primary" data-act="confirm" data-token="${h.holdToken}">Pay &amp; confirm</button>
+        <button class="btn small" data-act="cancel" data-token="${h.holdToken}">Cancel</button></div>` : ''}
+    </div>`;
+  }).join('');
+}
+$('myHolds').addEventListener('click', e => {
+  const b = e.target.closest('button[data-act]'); if (b) act(b.dataset.token, b.dataset.act);
+});
+
+$('sweepNow').addEventListener('click', async () => {
+  try {
+    const r = await api('/admin/sweeper/run', { method: 'POST' });
+    setMsg(`Sweeper released ${r.released} expired hold(s).`, 'ok');
+  } catch (e) { setMsg(e.message, 'err'); }
+  loadTrain();
+});
+
+/* ---------- history ---------- */
+async function loadHistory() {
+  try {
+    const runs = await api('/stampede/runs?limit=20');
+    if (!runs.length) { $('history').innerHTML = '<div class="empty">No runs yet.</div>'; return; }
+    $('history').innerHTML = `<table><thead><tr><th>#</th><th>Strategy</th><th>Mode</th><th>Threads</th><th>Seats</th><th>Sold</th><th>Oversold</th><th>Retries</th><th>p95 ms</th><th>Total ms</th><th>VT</th><th>DB index</th></tr></thead><tbody>${
+      runs.map(r => `<tr><td>${r.id}</td><td>${esc(r.strategy)}</td><td>${r.mode === 'ANY_SEAT' ? 'Any seat' : 'Same seat'}</td><td>${r.threads}</td><td>${r.seats}</td><td>${r.successes}</td>
+        <td class="${r.oversold_seats ? 'bad' : 'good'}">${r.oversold_seats ? '✕ ' + r.extra_bookings + ' extra' : '✓ 0'}</td>
+        <td>${r.total_retries}</td><td>${fmt(r.p95_ms)}</td><td>${fmt(r.wall_ms)}</td><td>${r.virtual_threads ? 'yes' : 'no'}</td><td>${r.db_guard ? 'on' : 'off'}</td></tr>`).join('')
+    }</tbody></table>`;
+  } catch { /* ignore */ }
+}
+
+$('runAll').addEventListener('click', () => runStampede(true));
+$('runOne').addEventListener('click', () => runStampede(false));
+$('refreshHistory').addEventListener('click', loadHistory);
+
+health(); loadArena(); loadTrain(); loadHistory();
+setInterval(health, 10000);
+setInterval(loadTrain, 3000);      // see other tabs' holds appear
+setInterval(renderHolds, 1000);    // countdown timers
+</script>
+</body>
+</html>

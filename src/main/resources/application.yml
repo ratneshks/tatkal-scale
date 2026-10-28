@@ -1,0 +1,51 @@
+spring:
+  application:
+    name: tatkal-scale
+  # No datasource URL here on purpose: TatkalApplication starts an embedded PostgreSQL
+  # and sets it, unless you pass SPRING_DATASOURCE_URL / --spring.datasource.url yourself.
+  datasource:
+    hikari:
+      # Real DB concurrency is capped by this, NOT by the number of Java threads.
+      maximum-pool-size: 10
+      connection-timeout: 30000
+      pool-name: tatkal-pool
+  jpa:
+    open-in-view: false            # no lazy-loading inside controllers; transactions stay in services
+    hibernate:
+      ddl-auto: validate           # Flyway owns the schema; Hibernate only checks it
+    properties:
+      hibernate:
+        jdbc.time_zone: UTC
+  flyway:
+    enabled: true
+  mvc:
+    problemdetails:
+      enabled: true
+  task:
+    scheduling:
+      pool:
+        size: 2                    # default is 1 thread for all @Scheduled jobs
+      thread-name-prefix: tatkal-sched-
+
+tatkal:
+  hold:
+    ttl: 5m                        # how long a HELD seat is reserved for payment
+    max-attempts: 10               # optimistic / skip-locked retry budget per request
+    backoff-base: 2ms              # exponential backoff with full jitter
+    backoff-max: 50ms
+    lock-timeout: 3s               # pessimistic wait limit (SET LOCAL lock_timeout)
+  sweeper:
+    delay: 30s                     # fixedDelay between expiry sweeps
+  stampede:
+    show-id: 2                     # dedicated show the simulator resets and attacks
+    max-threads: 5000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,info
+
+logging:
+  level:
+    com.tatkal: INFO
